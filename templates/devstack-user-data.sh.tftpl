@@ -1,0 +1,48 @@
+#!/bin/bash
+set -Eeuo pipefail
+exec > >(tee -a /var/log/devstack-bootstrap.log | logger -t devstack-bootstrap -s 2>/dev/console) 2>&1
+
+echo "DevStack bootstrap started at $(date -Is)"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y git curl wget vim jq python3-dev python3-venv build-essential libssl-dev ca-certificates
+
+if ! id stack >/dev/null 2>&1; then
+  useradd -s /bin/bash -d /opt/stack -m stack
+fi
+chmod +x /opt/stack
+echo "stack ALL=(ALL) NOPASSWD: ALL" >/etc/sudoers.d/stack
+chmod 0440 /etc/sudoers.d/stack
+visudo -cf /etc/sudoers.d/stack
+
+sudo -u stack git clone --branch "${branch}" "${repo_url}" /opt/stack/devstack
+
+cat >/opt/stack/devstack/local.conf <<'LOCALCONF'
+[[local|localrc]]
+ADMIN_PASSWORD=${admin_password}
+DATABASE_PASSWORD=$ADMIN_PASSWORD
+RABBIT_PASSWORD=$ADMIN_PASSWORD
+SERVICE_PASSWORD=$ADMIN_PASSWORD
+
+# Isolated tenant ranges; adjust if they overlap with networks used in your lab.
+FIXED_RANGE=10.100.0.0/24
+FLOATING_RANGE=192.168.100.0/24
+IPV4_ADDRS_SAFE_TO_USE=10.100.0.0/22
+
+# Avoid depending on nested KVM virtualization inside the EC2 guest.
+# QEMU emulation is slower, especially for nested guest VMs.
+LIBVIRT_TYPE=qemu
+
+LOGFILE=/opt/stack/logs/stack.sh.log
+VERBOSE=True
+LOCALCONF
+
+chown stack:stack /opt/stack/devstack/local.conf
+chmod 0600 /opt/stack/devstack/local.conf
+
+cd /opt/stack/devstack
+sudo -u stack -H bash -lc './stack.sh' || {
+  echo "DevStack failed; inspect /opt/stack/logs/stack.sh.log"
+  exit 1
+}
+echo "DevStack bootstrap finished at $(date -Is)"
