@@ -23,7 +23,7 @@ resource "aws_key_pair" "devstack" {
 
 resource "aws_security_group" "devstack" {
   name        = "${var.project_name}-sg"
-  description = "Restricted access to the DevStack host"
+  description = "Restricted SSH and public Horizon access"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -33,20 +33,23 @@ resource "aws_security_group" "devstack" {
     protocol    = "tcp"
     cidr_blocks = [var.admin_cidr]
   }
+
   ingress {
-    description = "Horizon HTTP from administrator"
+    description = "Horizon HTTP for demonstration"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = [var.admin_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
+
   ingress {
-    description = "Horizon HTTPS from administrator"
+    description = "Horizon HTTPS for demonstration"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [var.admin_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
+
   egress {
     from_port   = 0
     to_port     = 0
